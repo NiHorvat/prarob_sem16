@@ -2,7 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
-from math import atan2, sqrt
+from math import atan2, sqrt, acos, asin
 
 from geometry_msgs.msg import Point
 from std_msgs.msg import Float32MultiArray
@@ -40,6 +40,9 @@ class IKNode(Node):
             callback=self.xyz_subscriber_cb_,
             qos_profile=10
         )
+        
+        self.get_logger().info("Node initialisation finished")
+
 
 
     def xyz_subscriber_cb_(self, msg: Point):
@@ -50,19 +53,26 @@ class IKNode(Node):
 
         x, y, z = msg.x, msg.y, msg.z
 
-        h2 = d1 + d2            # height of joint2 from ground
-        r  = sqrt(x**2 + y**2)  # radial distance from base axis
-        dz = z - h2 + L2        # vertical offset from joint2 accounting for pen drop
+        h2 = d1 + d2            # height of joint2 (shoulder) above world origin
+        r  = sqrt(x**2 + y**2)  # radial distance from base axis to target
+        dz = z - h2             # signed height from shoulder to target
 
-        if sqrt(r**2 + dz**2) > L1:
+        d = sqrt(r**2 + dz**2)  # straight-line distance from shoulder to target
+
+        # law of cosines coefficients
+        D = (L1**2 + L2**2 - d**2) / (2.0 * L1 * L2)
+        Q = (L1**2 + d**2 - L2**2) / (2.0 * L1 * d)
+
+        if abs(D) > 1.0 or abs(Q) > 1.0:
             self.get_logger().warn(
                 f"Target ({x:.3f}, {y:.3f}, {z:.3f}) is out of reach"
             )
             return
 
-        theta1 = atan2(y, x)   # base yaw
-        theta2 = atan2(dz, r)  # arm pitch
-        theta3 = theta2        # wrist matches arm to keep pen vertical
+        theta1 = atan2(y, x)            # base yaw
+        phi    = atan2(dz, r)           # angle of shoulder→target from horizontal
+        theta2 = phi + acos(Q)          # arm pitch (elbow-up solution)
+        theta3 = asin(D)                # wrist angle from law of cosines
 
         out = Float32MultiArray()
         out.data = [float(theta1), float(theta2), float(theta3)]

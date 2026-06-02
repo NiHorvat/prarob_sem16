@@ -1,14 +1,20 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+  <xacro:arg name="use_mock" default="false"/>
+
   <xacro:macro name="prarob_manipulator_ros2_control" params="name">
 
     <ros2_control name="${name}" type="system">
       <hardware>
-        <plugin>dynamixel_hardware/DynamixelHardware</plugin>
-        <param name="usb_port">/dev/ttyUSB0</param>
-        <param name="baud_rate">1000000</param>
-        <!-- <param name="use_dummy">true</param> -->
+        <xacro:if value="$(arg use_mock)">
+          <plugin>mock_components/GenericSystem</plugin>
+        </xacro:if>
+        <xacro:unless value="$(arg use_mock)">
+          <plugin>dynamixel_hardware/DynamixelHardware</plugin>
+          <param name="usb_port">/dev/ttyUSB0</param>
+          <param name="baud_rate">1000000</param>
+        </xacro:unless>
       </hardware>
       <joint name="joint1">
         <param name="id">13</param>

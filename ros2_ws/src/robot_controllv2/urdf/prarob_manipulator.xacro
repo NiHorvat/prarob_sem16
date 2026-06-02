@@ -11,40 +11,41 @@
   </joint>
 
   <!-- link1: base plate + riser + servo body (fixed, before joint1 base yaw) -->
+  <!-- origin = centre of base plate (z=0 is the plate mid-plane) -->
   <link name="link1">
     <inertial>
-      <origin xyz="0 0 0.03" rpy="0 0 0"/>
+      <origin xyz="0 0 0.027" rpy="0 0 0"/>
       <mass value="0.18"/>
       <inertia ixx="1.30e-04" iyy="1.30e-04" izz="8.10e-05" ixy="0" iyz="0" ixz="0"/>
     </inertial>
     <!-- base plate -->
     <visual>
-      <origin xyz="0 0 0.003" rpy="0 0 0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry><box size="0.086 0.068 0.006"/></geometry>
       <material name="base_dark_grey"><color rgba="0.20 0.20 0.20 1.0"/></material>
     </visual>
     <collision>
-      <origin xyz="0 0 0.003" rpy="0 0 0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry><box size="0.086 0.068 0.006"/></geometry>
     </collision>
     <!-- riser -->
     <visual>
-      <origin xyz="0 0 0.0145" rpy="0 0 0"/>
+      <origin xyz="0 0 0.0115" rpy="0 0 0"/>
       <geometry><box size="0.040 0.040 0.017"/></geometry>
       <material name="base_orange"><color rgba="0.95 0.55 0.10 1.0"/></material>
     </visual>
     <collision>
-      <origin xyz="0 0 0.0145" rpy="0 0 0"/>
+      <origin xyz="0 0 0.0115" rpy="0 0 0"/>
       <geometry><box size="0.040 0.040 0.017"/></geometry>
     </collision>
     <!-- servo1 body (fixed part of yaw motor) -->
     <visual>
-      <origin xyz="0 0 0.042" rpy="0 0 0"/>
+      <origin xyz="0 0 0.039" rpy="0 0 0"/>
       <geometry><box size="0.0285 0.046 0.0379"/></geometry>
       <material name="base_light_grey"><color rgba="0.60 0.60 0.60 1.0"/></material>
     </visual>
     <collision>
-      <origin xyz="0 0 0.042" rpy="0 0 0"/>
+      <origin xyz="0 0 0.039" rpy="0 0 0"/>
       <geometry><box size="0.0285 0.046 0.0379"/></geometry>
     </collision>
   </link>
@@ -53,7 +54,7 @@
   <joint name="joint1" type="revolute">
     <parent link="link1"/>
     <child link="link2"/>
-    <origin xyz="0 0 0.0609" rpy="0 0 0"/>
+    <origin xyz="0 0 0.0579" rpy="0 0 0"/>
     <axis xyz="0 0 1"/>
     <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="1.5" velocity="5.236"/>
     <dynamics damping="0.01" friction="0.05"/>

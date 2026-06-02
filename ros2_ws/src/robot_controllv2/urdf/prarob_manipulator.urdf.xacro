@@ -9,5 +9,15 @@
     <origin xyz="0 0 0" rpy="0 0 0" />
   </xacro:prarob_manipulator>
 
+  
   <xacro:prarob_manipulator_ros2_control name="prarob_manipulator_ros2_control" />
+
+
+
+  <xacro:include filename="$(find robot_controllv2)/urdf/drawing_board.xacro"/>
+  
+  <xacro:drawing_board parent="world"/>
+
+
+
 </robot>

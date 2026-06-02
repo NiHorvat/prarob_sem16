@@ -4,7 +4,7 @@ ik_node:
     angles_publisher_topic: /move_servos_node/angles
 
     # link lengths (metres) — must match the URDF
-    d1: 0.0609   # world to joint1 (base yaw)
+    d1: 0.0579   # world to joint1 (base yaw) — measured from base plate centre
     d2: 0.0209   # joint1 to joint2 (arm pitch)
     L1: 0.224    # joint2 to joint3 (arm length)
     L2: 0.125    # joint3 to pen tip (wrist bracket 0.020 + pen 0.105)

@@ -47,9 +47,15 @@ class prarobClientNode(Node):
             qos_profile=10
         )
 
+        self.get_logger().info("Node initialisation finished, now proceding to sleep... zzzzzzzzz... ned that for the system to initialise so i can move the robot to the starting position")
+        self.get_clock().sleep_for(Duration(seconds=6.0)) # wait for the robot to initialise
+
+        
+        
+        self.move_to_init_conf_()
+        self.get_logger().info("Moved robot to init position")
 
 
-        self.get_clock().sleep_for(Duration(seconds=3.0)) # wait for the robot to initialise
 
 
 
@@ -76,7 +82,7 @@ class prarobClientNode(Node):
 
 
     def move_to_init_conf_(self):
-        self.move_robot_([0, 0.0, radians(-90)])
+        self.move_robot_([radians(90), 0.0, radians(-90)])
 
 
 
