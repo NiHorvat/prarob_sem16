@@ -1,0 +1,1 @@
+Ovdje se nalazi korisnicka aplikacija i gui
