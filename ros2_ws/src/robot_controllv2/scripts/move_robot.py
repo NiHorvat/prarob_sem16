@@ -18,8 +18,14 @@ class prarobClientNode(Node):
         # Define publisher
         self.robot_goal_publisher_ = self.create_publisher(JointTrajectory, '/joint_trajectory_controller/joint_trajectory', 10)
 
+
+
+
         self.get_clock().sleep_for(Duration(seconds=3.0))
 
+
+        self.dance()
+        return
         
         print(self.move_robot([0, 0.0, 0.0]))
         self.get_clock().sleep_for(Duration(seconds=1.0))
@@ -67,6 +73,25 @@ class prarobClientNode(Node):
         #print(self.move_robot([0, -1.0, 2.0]))
         #self.get_clock().sleep_for(Duration(seconds=1.0))
         #print(self.move_robot([1.0, 0.0, -2.0]))
+
+        
+    def dance(self):
+        while True:
+            r = radians(90)
+                
+            print(self.move_robot([0*r,0, 0]))
+            self.get_clock().sleep_for(Duration(seconds=1.0))
+            
+                            
+            print(self.move_robot([1*r,r, 0]))
+            self.get_clock().sleep_for(Duration(seconds=1.0))
+            
+            print(self.move_robot([2*r,0,0]))
+            self.get_clock().sleep_for(Duration(seconds=1.0))
+            
+            print(self.move_robot([3*r,r, 0]))
+            self.get_clock().sleep_for(Duration(seconds=1.0))
+            
 
         
 
