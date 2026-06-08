@@ -1,0 +1,181 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+<xacro:macro name="prarob_manipulator" params="parent *origin">
+  <joint name="origin_to_link1" type="fixed">
+    <xacro:insert_block name="origin" />
+    <parent link="${parent}" />
+    <child link="link1" />
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+    <axis xyz="0 0 1" />
+  </joint>
+
+  <!-- link1: base plate + riser + servo body (fixed, before joint1 base yaw) -->
+  <!-- origin = centre of base plate (z=0 is the plate mid-plane) -->
+  <link name="link1">
+    <inertial>
+      <origin xyz="0 0 0.027" rpy="0 0 0"/>
+      <mass value="0.18"/>
+      <inertia ixx="1.30e-04" iyy="1.30e-04" izz="8.10e-05" ixy="0" iyz="0" ixz="0"/>
+    </inertial>
+    <!-- base plate -->
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.086 0.068 0.006"/></geometry>
+      <material name="base_dark_grey"><color rgba="0.20 0.20 0.20 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.086 0.068 0.006"/></geometry>
+    </collision>
+    <!-- riser -->
+    <visual>
+      <origin xyz="0 0 0.0115" rpy="0 0 0"/>
+      <geometry><box size="0.040 0.040 0.017"/></geometry>
+      <material name="base_orange"><color rgba="0.95 0.55 0.10 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0115" rpy="0 0 0"/>
+      <geometry><box size="0.040 0.040 0.017"/></geometry>
+    </collision>
+    <!-- servo1 body (fixed part of yaw motor) -->
+    <visual>
+      <origin xyz="0 0 0.039" rpy="0 0 0"/>
+      <geometry><box size="0.0285 0.046 0.0379"/></geometry>
+      <material name="base_light_grey"><color rgba="0.60 0.60 0.60 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.039" rpy="0 0 0"/>
+      <geometry><box size="0.0285 0.046 0.0379"/></geometry>
+    </collision>
+  </link>
+
+  <!-- joint1: base yaw (bottom), rotates around Z -->
+  <joint name="joint1" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin xyz="0 0 0.0579" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="1.5" velocity="5.236"/>
+    <dynamics damping="0.01" friction="0.05"/>
+  </joint>
+
+  <!-- link2: shoulder servo top (rotates with joint1) -->
+  <link name="link2">
+    <inertial>
+      <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="1.0e-05" iyy="1.0e-05" izz="1.0e-05" ixy="0" iyz="0" ixz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+      <geometry><box size="0.0285 0.046 0.021"/></geometry>
+      <material name="shoulder_light_grey"><color rgba="0.60 0.60 0.60 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+      <geometry><box size="0.0285 0.046 0.021"/></geometry>
+    </collision>
+  </link>
+
+  <!-- joint2: arm pitch (second), rotates around -Y so +90° lifts arm to +Z -->
+  <joint name="joint2" type="revolute">
+    <parent link="link2"/>
+    <child link="link3"/>
+    <origin xyz="0 0 0.0209" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="1.5" velocity="5.236"/>
+    <dynamics damping="0.01" friction="0.05"/>
+  </joint>
+
+  <!-- link3: arm (224 mm), extends along +X in default position -->
+  <link name="link3">
+    <inertial>
+      <origin xyz="0.112 0 0" rpy="0 0 0"/>
+      <mass value="0.0776"/>
+      <inertia ixx="5.04e-06" iyy="4.66e-04" izz="4.71e-04" ixy="0" iyz="0" ixz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.112 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.224 0.006 0.024"/></geometry>
+      <material name="arm_blue"><color rgba="0.00 0.40 0.80 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0.112 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.224 0.006 0.024"/></geometry>
+    </collision>
+  </link>
+
+  <!-- joint3: wrist, rotates around Y -->
+  <joint name="joint3" type="revolute">
+    <parent link="link3"/>
+    <child link="link_tool"/>
+    <origin xyz="0.224 0 0" rpy="0 3.14159265358979 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="1.5" velocity="3.142"/>
+    <dynamics damping="0.01" friction="0.05"/>
+  </joint>
+
+  <!-- link_tool: wrist bracket -->
+  <link name="link_tool">
+    <inertial>
+      <origin xyz="0 0 0.01" rpy="0 0 0"/>
+      <mass value="0.0335"/>
+      <inertia ixx="3.25e-06" iyy="8.34e-06" izz="9.92e-06" ixy="0" iyz="0" ixz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.01" rpy="0 0 0"/>
+      <geometry><box size="0.040 0.030 0.020"/></geometry>
+      <material name="wrist_green"><color rgba="0.27 0.74 0.36 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.01" rpy="0 0 0"/>
+      <geometry><box size="0.040 0.030 0.020"/></geometry>
+    </collision>
+  </link>
+
+  <!-- pen/marker attached to wrist -->
+  <joint name="joint_marker" type="fixed">
+    <parent link="link_tool"/>
+    <child link="marker_link"/>
+    <origin xyz="0 0 0.020" rpy="0 0 0"/>
+  </joint>
+
+  <link name="marker_link">
+    <inertial>
+      <origin xyz="0 0 0.0525" rpy="0 0 0"/>
+      <mass value="0.005"/>
+      <inertia ixx="1e-06" iyy="1e-06" izz="1e-07" ixy="0" iyz="0" ixz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0525" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.004" length="0.105"/></geometry>
+      <material name="marker_black"><color rgba="0.05 0.05 0.05 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0525" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.004" length="0.105"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="joint_tool" type="fixed">
+    <parent link="marker_link"/>
+    <child link="end_effector"/>
+    <origin xyz="0 0 0.105" rpy="0 0 0"/>
+  </joint>
+
+  <link name="end_effector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="0" iyy="0" izz="0" ixy="0" iyz="0" ixz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><sphere radius="0.005"/></geometry>
+      <material name="ee_red"><color rgba="0.80 0.10 0.10 1.0"/></material>
+    </visual>
+  </link>
+
+</xacro:macro>
+</robot>

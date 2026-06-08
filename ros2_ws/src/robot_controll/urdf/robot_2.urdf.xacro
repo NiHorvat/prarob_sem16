@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<robot name="Robot_2.0" xmlns:xacro="http://ros.org/wiki/xacro">
+
+    <!-- use_ros2_control : 'true'  → include ros2_control hardware tags          -->
+    <!-- use_mock_hardware: 'true'  → GenericSystem mock (sim), 'false' → Dynamixel -->
+    <xacro:arg name="use_ros2_control"  default="false"/>
+    <xacro:arg name="use_mock_hardware" default="false"/>
+
+    <!-- ============ Materials (distinct colours) ============ -->
+    <material name="dark_grey"> <color rgba="0.20 0.20 0.20 1.0"/></material>
+    <material name="light_grey"><color rgba="0.60 0.60 0.60 1.0"/></material>
+    <material name="blue">      <color rgba="0.00 0.40 0.80 1.0"/></material>
+    <material name="green">     <color rgba="0.27 0.74 0.36 1.0"/></material>
+    <material name="orange">    <color rgba="0.95 0.55 0.10 1.0"/></material>
+    <material name="black">     <color rgba="0.05 0.05 0.05 1.0"/></material>
+    <material name="red">       <color rgba="0.80 0.10 0.10 1.0"/></material>
+
+    <!-- ============ World anchor ============ -->
+    <link name="world"/>
+    <joint name="world_to_base" type="fixed">
+        <parent link="world"/>
+        <child link="base_link"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- ============ base_link : plate + riser + base (yaw) servo ============ -->
+    <link name="base_link">
+        <inertial>
+            <origin xyz="0 0 0.03" rpy="0 0 0"/>
+            <mass value="0.18"/>
+            <inertia ixx="1.30e-04" iyy="1.30e-04" izz="8.10e-05" ixy="0" iyz="0" ixz="0"/>
+        </inertial>
+        <!-- base plate -->
+        <visual>
+            <origin xyz="0 0 0.003" rpy="0 0 0"/>
+            <geometry><box size="0.086 0.068 0.006"/></geometry>
+            <material name="dark_grey"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.003" rpy="0 0 0"/>
+            <geometry><box size="0.086 0.068 0.006"/></geometry>
+        </collision>
+        <!-- riser between plate and the first servo -->
+        <visual>
+            <origin xyz="0 0 0.0145" rpy="0 0 0"/>
+            <geometry><box size="0.040 0.040 0.017"/></geometry>
+            <material name="orange"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.0145" rpy="0 0 0"/>
+            <geometry><box size="0.040 0.040 0.017"/></geometry>
+        </collision>
+        <!-- servo1 body (base yaw motor, fixed part) -->
+        <visual>
+            <origin xyz="0 0 0.042" rpy="0 0 0"/>
+            <geometry><box size="0.0285 0.046 0.0379"/></geometry>
+            <material name="light_grey"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.042" rpy="0 0 0"/>
+            <geometry><box size="0.0285 0.046 0.0379"/></geometry>
+        </collision>
+    </link>
+
+    <!-- joint3 : base rotator about Z (top of servo1) -->
+    <joint name="joint3" type="revolute">
+        <parent link="base_link"/>
+        <child link="link1"/>
+        <origin xyz="0 0 0.0609" rpy="0 0 0"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="1.5" velocity="5.236"/>
+        <dynamics damping="0.01" friction="0.05"/>
+    </joint>
+
+    <!-- ============ link1 : shoulder servo body (yaws with joint1) ============ -->
+    <link name="link1">
+        <inertial>
+            <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+            <mass value="0.05"/>
+            <inertia ixx="1.0e-05" iyy="1.0e-05" izz="1.0e-05" ixy="0" iyz="0" ixz="0"/>
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+            <geometry><box size="0.0285 0.046 0.021"/></geometry>
+            <material name="light_grey"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+            <geometry><box size="0.0285 0.046 0.021"/></geometry>
+        </collision>
+    </link>
+
+    <!-- joint1 : arm about Y -->
+    <joint name="joint1" type="revolute">
+        <parent link="link1"/>
+        <child link="link2"/>
+        <origin xyz="0 0 0.0209" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+        <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="1.5" velocity="5.236"/>
+        <dynamics damping="0.01" friction="0.05"/>
+    </joint>
+
+    <!-- ============ link2 : arm (box, points up +Z, 224 mm) ============ -->
+    <link name="link2">
+        <inertial>
+            <origin xyz="0 0 0.112" rpy="0 0 0"/>
+            <mass value="0.0776"/>
+            <inertia ixx="4.71e-04" iyy="4.66e-04" izz="5.04e-06" ixy="0" iyz="0" ixz="0"/>
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0.112" rpy="0 0 0"/>
+            <geometry><box size="0.024 0.006 0.224"/></geometry>
+            <material name="blue"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.112" rpy="0 0 0"/>
+            <geometry><box size="0.024 0.006 0.224"/></geometry>
+        </collision>
+    </link>
+
+    <!-- joint2 : end effector about Y (tip of the arm) -->
+    <joint name="joint2" type="revolute">
+        <parent link="link2"/>
+        <child link="link3"/>
+        <origin xyz="0 0 0.224" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+        <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="1.5" velocity="3.142"/>
+        <dynamics damping="0.01" friction="0.05"/>
+    </joint>
+
+    <!-- ============ link3 : wrist bracket (box) ============ -->
+    <link name="link3">
+        <inertial>
+            <origin xyz="0 0 0.01" rpy="0 0 0"/>
+            <mass value="0.0335"/>
+            <inertia ixx="3.25e-06" iyy="8.34e-06" izz="9.92e-06" ixy="0" iyz="0" ixz="0"/>
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0.01" rpy="0 0 0"/>
+            <geometry><box size="0.040 0.030 0.020"/></geometry>
+            <material name="green"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.01" rpy="0 0 0"/>
+            <geometry><box size="0.040 0.030 0.020"/></geometry>
+        </collision>
+    </link>
+
+    <!-- ============ Pen on the end effector ============ -->
+    <joint name="joint_marker" type="fixed">
+        <parent link="link3"/>
+        <child link="marker_link"/>
+        <origin xyz="0 0 0.020" rpy="0 0 0"/>
+    </joint>
+
+    <link name="marker_link">
+        <inertial>
+            <origin xyz="0 0 0.0525" rpy="0 0 0"/>
+            <mass value="0.005"/>
+            <inertia ixx="1e-06" iyy="1e-06" izz="1e-07" ixy="0" iyz="0" ixz="0"/>
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0.0525" rpy="0 0 0"/>
+            <geometry><cylinder radius="0.004" length="0.105"/></geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.0525" rpy="0 0 0"/>
+            <geometry><cylinder radius="0.004" length="0.105"/></geometry>
+        </collision>
+    </link>
+
+    <joint name="joint_tool" type="fixed">
+        <parent link="marker_link"/>
+        <child link="end_effector"/>
+        <origin xyz="0 0 0.105" rpy="0 0 0"/>
+    </joint>
+
+    <link name="end_effector">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="0.001"/>
+            <inertia ixx="0" iyy="0" izz="0" ixy="0" iyz="0" ixz="0"/>
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry><sphere radius="0.005"/></geometry>
+            <material name="red"/>
+        </visual>
+    </link>
+
+
+    <!-- ================================================================ -->
+    <!-- Drawing board — 350×350 mm workspace (from seminar spec).       -->
+    <!-- Board origin = bottom-left corner (closest to robot base).      -->
+    <!--   World frame: board spans x[0 .. 0.35], y[-0.175 .. 0.175]    -->
+    <!--   Drawing surface is at z=0 (floor level, same as robot base).  -->
+    <!--                                                                  -->
+    <!-- Grid: 50 mm minor (light grey), 100 mm major (dark grey).       -->
+    <!-- Coordinate markers (cylinders, 8 mm dia):                       -->
+    <!--   RED   — board origin (0, 0)   = world (0.000, -0.175)         -->
+    <!--   ORANGE— X-axis 100 mm steps   = world (0.100, -0.175) …      -->
+    <!--   CYAN  — Y-axis 100 mm steps   = world (0.000, -0.075) …      -->
+    <!--   GREEN — board centre           = world (0.175,  0.000)         -->
+    <!-- ================================================================ -->
+    <link name="drawing_board">
+        <!-- ── board surface ────────────────────────────────────────── -->
+        <visual>
+            <origin xyz="0.175 0 -0.0015" rpy="0 0 0"/>
+            <geometry><box size="0.350 0.350 0.003"/></geometry>
+            <material name="board_white"><color rgba="0.97 0.97 0.95 1.0"/></material>
+        </visual>
+        <collision>
+            <origin xyz="0.175 0 -0.0015" rpy="0 0 0"/>
+            <geometry><box size="0.350 0.350 0.003"/></geometry>
+        </collision>
+
+        <!-- ── minor grid lines (50 mm, light grey) ─────────────────── -->
+        <!-- lines parallel to Y (at X = 0.05, 0.15, 0.25) -->
+        <visual><origin xyz="0.050 0.000 0.0005" rpy="0 0 0"/><geometry><box size="0.001 0.350 0.001"/></geometry><material name="grid_minor"><color rgba="0.75 0.75 0.75 1.0"/></material></visual>
+        <visual><origin xyz="0.150 0.000 0.0005" rpy="0 0 0"/><geometry><box size="0.001 0.350 0.001"/></geometry><material name="grid_minor"><color rgba="0.75 0.75 0.75 1.0"/></material></visual>
+        <visual><origin xyz="0.250 0.000 0.0005" rpy="0 0 0"/><geometry><box size="0.001 0.350 0.001"/></geometry><material name="grid_minor"><color rgba="0.75 0.75 0.75 1.0"/></material></visual>
+        <!-- lines parallel to X (at Y = ±0.075, ±0.025) -->
+        <visual><origin xyz="0.175 -0.075 0.0005" rpy="0 0 0"/><geometry><box size="0.350 0.001 0.001"/></geometry><material name="grid_minor"><color rgba="0.75 0.75 0.75 1.0"/></material></visual>
+        <visual><origin xyz="0.175 -0.025 0.0005" rpy="0 0 0"/><geometry><box size="0.350 0.001 0.001"/></geometry><material name="grid_minor"><color rgba="0.75 0.75 0.75 1.0"/></material></visual>
+        <visual><origin xyz="0.175  0.025 0.0005" rpy="0 0 0"/><geometry><box size="0.350 0.001 0.001"/></geometry><material name="grid_minor"><color rgba="0.75 0.75 0.75 1.0"/></material></visual>
+        <visual><origin xyz="0.175  0.075 0.0005" rpy="0 0 0"/><geometry><box size="0.350 0.001 0.001"/></geometry><material name="grid_minor"><color rgba="0.75 0.75 0.75 1.0"/></material></visual>
+
+        <!-- ── major grid lines (100 mm, dark grey) ──────────────────── -->
+        <!-- lines parallel to Y (at X = 0, 0.10, 0.20, 0.30, 0.35) -->
+        <visual><origin xyz="0.000 0.000 0.0007" rpy="0 0 0"/><geometry><box size="0.002 0.350 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <visual><origin xyz="0.100 0.000 0.0007" rpy="0 0 0"/><geometry><box size="0.002 0.350 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <visual><origin xyz="0.200 0.000 0.0007" rpy="0 0 0"/><geometry><box size="0.002 0.350 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <visual><origin xyz="0.300 0.000 0.0007" rpy="0 0 0"/><geometry><box size="0.002 0.350 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <visual><origin xyz="0.350 0.000 0.0007" rpy="0 0 0"/><geometry><box size="0.002 0.350 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <!-- lines parallel to X (at Y = -0.175, -0.125, 0, 0.125, 0.175) -->
+        <visual><origin xyz="0.175 -0.175 0.0007" rpy="0 0 0"/><geometry><box size="0.350 0.002 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <visual><origin xyz="0.175 -0.125 0.0007" rpy="0 0 0"/><geometry><box size="0.350 0.002 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <visual><origin xyz="0.175  0.000 0.0007" rpy="0 0 0"/><geometry><box size="0.350 0.002 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <visual><origin xyz="0.175  0.125 0.0007" rpy="0 0 0"/><geometry><box size="0.350 0.002 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+        <visual><origin xyz="0.175  0.175 0.0007" rpy="0 0 0"/><geometry><box size="0.350 0.002 0.001"/></geometry><material name="grid_major"><color rgba="0.40 0.40 0.40 1.0"/></material></visual>
+
+        <!-- ── coordinate markers (cylinders, r=4 mm, h=4 mm) ────────── -->
+        <!-- RED — board origin (0 mm, 0 mm) = world (0.000, -0.175) -->
+        <visual><origin xyz="0.000 -0.175 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.006" length="0.006"/></geometry><material name="marker_red"><color rgba="0.9 0.1 0.1 1.0"/></material></visual>
+        <!-- ORANGE — X axis: 100, 200, 300, 350 mm -->
+        <visual><origin xyz="0.100 -0.175 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.005" length="0.005"/></geometry><material name="marker_orange"><color rgba="0.95 0.55 0.05 1.0"/></material></visual>
+        <visual><origin xyz="0.200 -0.175 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.005" length="0.005"/></geometry><material name="marker_orange"><color rgba="0.95 0.55 0.05 1.0"/></material></visual>
+        <visual><origin xyz="0.300 -0.175 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.005" length="0.005"/></geometry><material name="marker_orange"><color rgba="0.95 0.55 0.05 1.0"/></material></visual>
+        <visual><origin xyz="0.350 -0.175 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.005" length="0.005"/></geometry><material name="marker_orange"><color rgba="0.95 0.55 0.05 1.0"/></material></visual>
+        <!-- CYAN — Y axis: 100, 200, 300, 350 mm from board origin -->
+        <visual><origin xyz="0.000 -0.075 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.005" length="0.005"/></geometry><material name="marker_cyan"><color rgba="0.05 0.70 0.90 1.0"/></material></visual>
+        <visual><origin xyz="0.000  0.025 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.005" length="0.005"/></geometry><material name="marker_cyan"><color rgba="0.05 0.70 0.90 1.0"/></material></visual>
+        <visual><origin xyz="0.000  0.125 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.005" length="0.005"/></geometry><material name="marker_cyan"><color rgba="0.05 0.70 0.90 1.0"/></material></visual>
+        <visual><origin xyz="0.000  0.175 0.004" rpy="0 0 0"/><geometry><cylinder radius="0.005" length="0.005"/></geometry><material name="marker_cyan"><color rgba="0.05 0.70 0.90 1.0"/></material></visual>
+        <!-- GREEN — board centre (175, 175) = world (0.175, 0.000) -->
+        <visual><origin xyz="0.175  0.000 0.005" rpy="0 0 0"/><geometry><cylinder radius="0.007" length="0.008"/></geometry><material name="marker_green"><color rgba="0.1 0.85 0.2 1.0"/></material></visual>
+
+        <inertial>
+            <origin xyz="0.175 0 -0.0015" rpy="0 0 0"/>
+            <mass value="0.5"/>
+            <inertia ixx="0.005" iyy="0.005" izz="0.010" ixy="0" iyz="0" ixz="0"/>
+        </inertial>
+    </link>
+
+    <joint name="world_to_board" type="fixed">
+        <parent link="world"/>
+        <child link="drawing_board"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- ============ ros2_control hardware interface ============ -->
+    <xacro:if value="$(arg use_ros2_control)">
+        <ros2_control name="robot_2_hardware" type="system">
+            <hardware>
+                <!-- Simulation: generic mock that mirrors commands to states instantly -->
+                <xacro:if value="$(arg use_mock_hardware)">
+                    <plugin>mock_components/GenericSystem</plugin>
+                </xacro:if>
+                <!-- Real robot: Dynamixel XL-430 servos -->
+                <xacro:unless value="$(arg use_mock_hardware)">
+                    <plugin>dynamixel_hardware/DynamixelHardware</plugin>
+                    <param name="usb_port">/dev/ttyUSB0</param>
+                    <param name="baud_rate">1000000</param>
+                </xacro:unless>
+            </hardware>
+            <!-- joint3 = base rotator, physical servo ID 13 -->
+            <joint name="joint3">
+                <param name="id">13</param>
+                <command_interface name="position"/>
+                <command_interface name="velocity"/>
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
+                <state_interface name="effort"/>
+                <param name="Position P Gain">640</param>
+                <param name="Position I Gain">0</param>
+                <param name="Position D Gain">3600</param>
+                <param name="Goal PWM">250</param>
+            </joint>
+            <!-- joint1 = arm (shoulder), physical servo ID 11 -->
+            <joint name="joint1">
+                <param name="id">11</param>
+                <command_interface name="position"/>
+                <command_interface name="velocity"/>
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
+                <state_interface name="effort"/>
+                <param name="Position P Gain">640</param>
+                <param name="Position I Gain">0</param>
+                <param name="Position D Gain">3600</param>
+                <param name="Goal PWM">250</param>
+            </joint>
+            <!-- joint2 = hand (end effector), physical servo ID 12 -->
+            <joint name="joint2">
+                <param name="id">12</param>
+                <command_interface name="position"/>
+                <command_interface name="velocity"/>
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
+                <state_interface name="effort"/>
+                <param name="Position P Gain">640</param>
+                <param name="Position I Gain">0</param>
+                <param name="Position D Gain">3600</param>
+                <param name="Goal PWM">250</param>
+            </joint>
+        </ros2_control>
+    </xacro:if>
+
+</robot>
