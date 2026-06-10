@@ -22,6 +22,8 @@ JOINT_NAMES = ['joint1', 'joint2', 'joint3']
 # Define Limits
 JOINT_MIN = [-3.0, -1.5, -1.4, -1.5]
 JOINT_MAX = [3.0, 1.5, 1.0, 1.5]
+# Topic the external IK node listens on for target Cartesian positions
+IK_XYZ_TOPIC = '/ik_node/xyz'
 ## ##
 
 
@@ -50,12 +52,18 @@ def ros2_interface_show(interface_type: str) -> str:
 
 
 @tool
-def move_robot_joints(positions: list[float], duration: float = 2.0):
+def move_to_pose(x: float, y: float, z: float):
     """
-    Moves the robot arm joints to specific positions (radians).
+    Moves the robot end-effector to a specific Cartesian position (X, Y, Z in meters).
+
+    This publishes the target position to the IK node, which handles the inverse
+    kinematics and commands the arm. Use this for any request to move the robot
+    to a point or position in space.
+
     Args:
-        positions: A list of 4 floats representing target angles.
-        duration: Time in seconds to reach the target.
+        x: Target X position in meters.
+        y: Target Y position in meters.
+        z: Target Z position in meters.
     """
     if not rclpy.ok():
         rclpy.init()
@@ -64,148 +72,22 @@ def move_robot_joints(positions: list[float], duration: float = 2.0):
     node = rclpy.create_node(node_name)
 
     try:
-        publisher = node.create_publisher(
-            Point, '/ik_node/xyz', 10)
+        publisher = node.create_publisher(Point, IK_XYZ_TOPIC, 10)
 
         point = Point()
-        point.x = positions[0]
-        point.y = positions[1]
-        point.z = positions[2]
+        point.x = float(x)
+        point.y = float(y)
+        point.z = float(z)
 
-
-        time.sleep(0.2)
+        # Allow publisher/subscriber discovery before sending the one-shot message
+        time.sleep(0.5)
         publisher.publish(point)
-        time.sleep(0.2)  
+        time.sleep(0.2)  # ensure delivery before node destruction
 
-        return f"Successfully sent command to {node_name}."
-
+        return (f"Successfully sent target position "
+                f"X:{point.x:.3f}, Y:{point.y:.3f}, Z:{point.z:.3f} to {IK_XYZ_TOPIC}.")
     except Exception as e:
-        return f"Error: {str(e)}"
-
-    finally:
-        # Properly cleanup the node
-        node.destroy_node()
-
-
-@tool
-def get_tool_pose(timeout_sec: float = 2.0):
-    """
-    Retrieves the most recent message from the /joint_states topic.
-    Use this to get the current positions, velocities, or efforts of the robot's joints.
-
-    Args:
-        timeout_sec: How long to wait for a message before giving up.
-    """
-    # Initialize rclpy if it hasn't been initialized yet
-    if not rclpy.ok():
-        rclpy.init()
-
-    node = rclpy.create_node('rosa_joint_state_fetcher')
-    received_msg = None
-
-    def callback(msg):
-        nonlocal received_msg
-        received_msg = msg
-
-    # Create a subscription
-    subscription = node.create_subscription(
-        JointState,
-        '/joint_states',
-        callback,
-        10
-    )
-    # TODO you will implement your own kinematics solution in kinematics.py
-    kinematics_node = Kinematics()
-
-    try:
-        # Spin until message is received or timeout occurs
-        start_time = node.get_clock().now()
-        while received_msg is None:
-            rclpy.spin_once(node, timeout_sec=0.1)
-
-            elapsed = node.get_clock().now() - start_time
-            if elapsed.nanoseconds > (timeout_sec * 1e9):
-                return "Error: Timeout reached. No messages received on /joint_states."
-
-        w = kinematics_node.get_dk(received_msg.position)
-
-        # Format the output for the agent
-        output = (
-            f"X: {w[0]}\n"
-            f"Y: {w[1]}\n"
-            f"Z: {w[2]}\n"
-            f"Roll: {w[3]}\n"
-            f"Pitch: {w[4]}\n"
-            f"Yaw: {w[5]}\n"
-
-        )
-        return output
-
-    except Exception as e:
-        return f"Error retrieving joint states: {str(e)}"
-    finally:
-        node.destroy_node()
-
-
-@tool
-def move_to_pose(x: float, y: float, z: float, roll: float, pitch: float, yaw: float, duration: float = 3.0):
-    """
-    Moves the robot end-effector to a specific 3D pose (X, Y, Z in meters, Roll, Pitch, Yaw in radians).
-    This tool calculates the required joint angles using Inverse Kinematics.
-
-    Args:
-        x, y, z: Target position in meters.
-        roll, pitch, yaw: Target orientation in radians.
-        duration: Time in seconds to complete the movement.
-    """
-    if not rclpy.ok():
-        rclpy.init()
-
-    # Use unique node name to avoid graph collisions
-    node_name = f'rosa_ik_mover_{int(time.time())}'
-    node = rclpy.create_node(node_name)
-
-    try:
-        # 1. Calculate Joint Angles via IK
-        # TODO you will implement your own kinematics solution in kinematics.py
-        kinematics_node = Kinematics()
-        target_pose = [x, y, z, roll, pitch, yaw]
-        joint_angles = kinematics_node.get_ik(target_pose)
-
-        # Basic error handling if IK fails (returns None or empty)
-        if joint_angles is None or len(joint_angles) == 0:
-            return f"Error: The pose {target_pose} is out of reach or mathematically impossible for this robot."
-
-        # 2. Setup Publisher
-        publisher = node.create_publisher(
-            JointTrajectory, '/arm_controller/joint_trajectory', 10)
-
-        # 3. Prepare Trajectory Message
-        msg = JointTrajectory()
-        msg.joint_names = JOINT_NAMES
-        point = JointTrajectoryPoint()
-
-        # Clip the IK results for safety
-        point.positions = np.clip(joint_angles, JOINT_MIN, JOINT_MAX).tolist()
-
-        # Set timing
-        seconds = int(duration)
-        nanoseconds = int((duration - seconds) * 1e9)
-        point.time_from_start.sec = seconds
-        point.time_from_start.nanosec = nanoseconds
-        msg.points.append(point)
-
-        # 4. Execute with Discovery Buffers
-        time.sleep(0.1)  # Allow publisher discovery
-        publisher.publish(msg)
-        time.sleep(0.1)  # Ensure message delivery before node destruction
-
-        return (f"IK Success. Moving to Pose: X:{x:.3f}, Y:{y:.3f}, Z:{z:.3f}. "
-                f"Computed Joints: {point.positions}")
-
-    except Exception as e:
-        return f"Hardware error during IK movement: {str(e)}"
-
+        return f"Error sending move command: {str(e)}"
     finally:
         node.destroy_node()
 
@@ -303,7 +185,7 @@ def _as_jsonable_points(points: list) -> list[list[float]]:
 
 def _publish_task_path(
     path_task: list,
-    xyz_topic: str = "/ik_node/xyz",
+    xyz_topic: str = IK_XYZ_TOPIC,
     seconds_per_waypoint: float = 0.15,
 ):
     if not rclpy.ok():
@@ -405,7 +287,7 @@ def plan_path(
 @tool
 def execute_task_path(
     path_task: list,
-    xyz_topic: str = "/ik_node/xyz",
+    xyz_topic: str = IK_XYZ_TOPIC,
     seconds_per_waypoint: float = 0.15,
 ):
     """
@@ -436,7 +318,7 @@ def plan_and_execute_path(
     workspace_y_min: float = -0.14,
     workspace_y_max: float = 0.14,
     drawing_z: float = 0.0,
-    xyz_topic: str = "/ik_node/xyz",
+    xyz_topic: str = IK_XYZ_TOPIC,
     seconds_per_waypoint: float = 0.15,
 ):
     """
@@ -472,6 +354,5 @@ def plan_and_execute_path(
     return result
 
 
-TOOLS = [ros2_interface_show, get_tool_pose,
-         move_robot_joints, move_to_pose, get_yolo_boxes, plan_path,
+TOOLS = [ros2_interface_show, move_to_pose, get_yolo_boxes, plan_path,
          execute_task_path, plan_and_execute_path]
