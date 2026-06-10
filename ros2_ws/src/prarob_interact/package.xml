@@ -10,7 +10,10 @@
   <buildtool_depend>ament_python</buildtool_depend>
 
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>numpy</exec_depend>
   <exec_depend>dotenv</exec_depend>
+  <exec_depend>rich</exec_depend>
+  <exec_depend>langchain</exec_depend>
   <exec_depend>langchain_openai</exec_depend>
   <exec_depend>jpl-rosa</exec_depend>
 

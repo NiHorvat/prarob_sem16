@@ -47,3 +47,30 @@ Kada razvijete novu funkcionalnost sustava, omogućite agentu korištenje tog ko
 Među unarijed spremnim alatima možete naći alate koji pozivaju prazne metode za direktnu i inverznu kinematiku iz *kinematics.py*, ako i neimplementirani alat za filtriranje yolo detekcije.
 
 Na vama je da implementirate alat za filtriranje yolo detekcije kao i metode direktne i inverzne kinematike sukladno parametrima vašeg robota.
+
+## Planiranje putanje markera
+
+U paketu je dodan modul `prarob_interact.path_planning` i ROSA alati:
+
+- `plan_path` planira putanju u koordinatama slike pomoću A* algoritma i YOLO bounding boxove tretira kao prepreke.
+- `execute_task_path` šalje listu `[x, y, z]` točaka na postojeći `/ik_node/xyz` topic.
+- `plan_and_execute_path` kombinira oba koraka: planira image-space putanju, linearno ju pretvara u task-space i objavljuje waypointe IK nodeu.
+
+`start` i `goal` mogu biti `{"x": px, "y": py}` ili YOLO box oblika `{"start_x": ..., "start_y": ..., "end_x": ..., "end_y": ...}`. `obstacles` je lista YOLO boxova koje treba izbjeći.
+
+Primjer poziva alata:
+
+```python
+plan_and_execute_path(
+    start={"x": 120, "y": 220},
+    goal={"x": 520, "y": 240},
+    obstacles=[{"start_x": 290, "start_y": 190, "end_x": 360, "end_y": 280}],
+    workspace_x_min=0.06,
+    workspace_x_max=0.28,
+    workspace_y_min=-0.14,
+    workspace_y_max=0.14,
+    drawing_z=0.0,
+)
+```
+
+Vrijednosti `workspace_x_min`, `workspace_x_max`, `workspace_y_min` i `workspace_y_max` treba uskladiti s kalibracijom kamere i stvarnim granicama ploče za crtanje.

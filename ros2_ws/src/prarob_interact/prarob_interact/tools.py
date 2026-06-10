@@ -8,6 +8,11 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from geometry_msgs.msg import Point
 from yolo_msgs.msg import DetectionArray
 from prarob_interact.kinematics import Kinematics
+from prarob_interact.path_planning import (
+    build_obstacle_grid,
+    image_path_to_task_path,
+    plan_image_path,
+)
 import numpy as np
 import time
 
@@ -217,6 +222,9 @@ def get_yolo_boxes(yolo_detections_topic: str, search_for: list, timeout_sec: fl
         timeout_sec: How long to wait for a detection message before timing out.
     """
 
+    if not rclpy.ok():
+        rclpy.init()
+
     node_name = f'yolo_fetcher_{int(time.time())}'
     node = rclpy.create_node(node_name)
     received_msg = None
@@ -272,25 +280,198 @@ def get_yolo_boxes(yolo_detections_topic: str, search_for: list, timeout_sec: fl
         node.destroy_node()
 
 
-def generate_grid(detections: list):
-    width = 640
-    height = 480
-    field_size = 5
-    margin = 2
-    grid = [[0 for j in range(width / field_size)]
-            for i in range(height / field_size)]
-    for detection in detections:
-        for i in range(round(detection.start_y / field_size) - margin, round(detection.end_y / field_size) + margin):
-            for j in range(round(detection.start_x / field_size) - margin, round(detection.end_x / field_size) + margin):
-                grid[i][j] = 1
-    return grid
+def generate_grid(
+    detections: list,
+    width: int = 640,
+    height: int = 480,
+    field_size: int = 5,
+    margin: int = 2,
+):
+    """Compatibility wrapper around the image-space occupancy grid builder."""
+    return build_obstacle_grid(
+        detections,
+        width=width,
+        height=height,
+        cell_size=field_size,
+        margin_cells=margin,
+    )
+
+
+def _as_jsonable_points(points: list) -> list[list[float]]:
+    return [[float(value) for value in point] for point in points]
+
+
+def _publish_task_path(
+    path_task: list,
+    xyz_topic: str = "/ik_node/xyz",
+    seconds_per_waypoint: float = 0.15,
+):
+    if not rclpy.ok():
+        rclpy.init()
+
+    node_name = f'path_executor_{int(time.time())}'
+    node = rclpy.create_node(node_name)
+    publisher = node.create_publisher(Point, xyz_topic, 10)
+
+    try:
+        time.sleep(0.4)
+        for waypoint in path_task:
+            if len(waypoint) < 3:
+                raise ValueError(f"Task waypoint must be [x, y, z], got {waypoint}")
+
+            point = Point()
+            point.x = float(waypoint[0])
+            point.y = float(waypoint[1])
+            point.z = float(waypoint[2])
+            publisher.publish(point)
+            time.sleep(max(0.02, float(seconds_per_waypoint)))
+
+        return f"Published {len(path_task)} waypoints to {xyz_topic}."
+
+    finally:
+        node.destroy_node()
 
 
 @tool
-def plan_path(obstacle_grid: list):
-    # TODO
-    return None
+def plan_path(
+    start: dict,
+    goal: dict,
+    obstacles: list = None,
+    obstacle_grid: list = None,
+    image_width: int = 640,
+    image_height: int = 480,
+    cell_size: int = 5,
+    margin_cells: int = 2,
+    workspace_x_min: float = 0.06,
+    workspace_x_max: float = 0.28,
+    workspace_y_min: float = -0.14,
+    workspace_y_max: float = 0.14,
+    drawing_z: float = 0.0,
+):
+    """
+    Plan an obstacle-avoiding path for the marker tip.
+
+    Args:
+        start: Start point as {'x': px, 'y': py} or a YOLO box dict with
+            start_x, start_y, end_x, end_y.
+        goal: Goal point in the same format as start.
+        obstacles: Optional list of YOLO box dicts that the path must avoid.
+        obstacle_grid: Optional precomputed grid where 1 means blocked.
+        image_width, image_height: Camera/image dimensions in pixels.
+        cell_size: Occupancy grid cell size in pixels.
+        margin_cells: Obstacle expansion in grid cells.
+        workspace_*: Linear image-to-robot workspace bounds in metres.
+        drawing_z: Marker tip z coordinate in metres.
+    """
+    try:
+        planned = plan_image_path(
+            start=start,
+            goal=goal,
+            obstacles=obstacles,
+            obstacle_grid=obstacle_grid,
+            width=image_width,
+            height=image_height,
+            cell_size=cell_size,
+            margin_cells=margin_cells,
+            simplify=True,
+        )
+        if not planned["path_found"]:
+            return {"path_found": False, "error": "No free path found."}
+
+        task_path = image_path_to_task_path(
+            planned["path_pixels"],
+            image_width=image_width,
+            image_height=image_height,
+            workspace_x_min=workspace_x_min,
+            workspace_x_max=workspace_x_max,
+            workspace_y_min=workspace_y_min,
+            workspace_y_max=workspace_y_max,
+            z=drawing_z,
+        )
+
+        return {
+            "path_found": True,
+            "path_pixels": _as_jsonable_points(planned["path_pixels"]),
+            "path_task": _as_jsonable_points(task_path),
+            "start_cell": list(planned["start_cell"]),
+            "goal_cell": list(planned["goal_cell"]),
+            "grid_size": planned["grid_size"],
+            "cell_size": planned["cell_size"],
+        }
+    except Exception as e:
+        return {"path_found": False, "error": str(e)}
+
+
+@tool
+def execute_task_path(
+    path_task: list,
+    xyz_topic: str = "/ik_node/xyz",
+    seconds_per_waypoint: float = 0.15,
+):
+    """
+    Execute a task-space marker-tip path by publishing each [x, y, z] waypoint
+    to the existing IK node.
+    """
+    try:
+        return _publish_task_path(
+            path_task,
+            xyz_topic=xyz_topic,
+            seconds_per_waypoint=seconds_per_waypoint,
+        )
+    except Exception as e:
+        return f"Error executing task path: {e}"
+
+
+@tool
+def plan_and_execute_path(
+    start: dict,
+    goal: dict,
+    obstacles: list = None,
+    image_width: int = 640,
+    image_height: int = 480,
+    cell_size: int = 5,
+    margin_cells: int = 2,
+    workspace_x_min: float = 0.06,
+    workspace_x_max: float = 0.28,
+    workspace_y_min: float = -0.14,
+    workspace_y_max: float = 0.14,
+    drawing_z: float = 0.0,
+    xyz_topic: str = "/ik_node/xyz",
+    seconds_per_waypoint: float = 0.15,
+):
+    """
+    Plan and immediately execute an image-space path through the IK node.
+
+    Use start/goal as YOLO box dicts or {'x': px, 'y': py}. Obstacles should
+    be the YOLO boxes for objects named as avoid targets.
+    """
+    result = plan_path.func(
+        start=start,
+        goal=goal,
+        obstacles=obstacles,
+        obstacle_grid=None,
+        image_width=image_width,
+        image_height=image_height,
+        cell_size=cell_size,
+        margin_cells=margin_cells,
+        workspace_x_min=workspace_x_min,
+        workspace_x_max=workspace_x_max,
+        workspace_y_min=workspace_y_min,
+        workspace_y_max=workspace_y_max,
+        drawing_z=drawing_z,
+    )
+    if not result.get("path_found"):
+        return result
+
+    execution = _publish_task_path(
+        result["path_task"],
+        xyz_topic=xyz_topic,
+        seconds_per_waypoint=seconds_per_waypoint,
+    )
+    result["execution"] = execution
+    return result
 
 
 TOOLS = [ros2_interface_show, get_tool_pose,
-         move_robot_joints, move_to_pose, get_yolo_boxes, plan_path]
+         move_robot_joints, move_to_pose, get_yolo_boxes, plan_path,
+         execute_task_path, plan_and_execute_path]
