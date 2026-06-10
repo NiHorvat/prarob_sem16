@@ -5,6 +5,7 @@ from langchain.agents import tool
 import rclpy
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from geometry_msgs.msg import Point
 from yolo_msgs.msg import DetectionArray
 from prarob_interact.kinematics import Kinematics
 import numpy as np
@@ -54,31 +55,22 @@ def move_robot_joints(positions: list[float], duration: float = 2.0):
     if not rclpy.ok():
         rclpy.init()
 
-    # FIX 1: Use a unique node name to avoid "Ghost Node" collisions in the graph
     node_name = f'rosa_mover_{int(time.time())}'
     node = rclpy.create_node(node_name)
 
     try:
         publisher = node.create_publisher(
-            JointTrajectory, '/arm_controller/joint_trajectory', 10)
+            Point, '/ik_node/xyz', 10)
 
-        # Prepare Message
-        msg = JointTrajectory()
-        msg.joint_names = JOINT_NAMES
-        point = JointTrajectoryPoint()
-        point.positions = np.clip(positions, JOINT_MIN, JOINT_MAX).tolist()
+        point = Point()
+        point.x = positions[0]
+        point.y = positions[1]
+        point.z = positions[2]
 
-        seconds = int(duration)
-        nanoseconds = int((duration - seconds) * 1e9)
-        point.time_from_start.sec = seconds
-        point.time_from_start.nanosec = nanoseconds
-        msg.points.append(point)
 
-        # FIX 2: Give the discovery mechanism a tiny moment to see the publisher
-        # and another moment after publishing to ensure the data hits the wire.
-        time.sleep(0.1)
-        publisher.publish(msg)
-        time.sleep(0.1)  # The "Grace Period"
+        time.sleep(0.2)
+        publisher.publish(point)
+        time.sleep(0.2)  
 
         return f"Successfully sent command to {node_name}."
 
