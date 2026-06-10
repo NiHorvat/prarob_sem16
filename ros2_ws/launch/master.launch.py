@@ -1,0 +1,1 @@
+# pokrece sve potrebno
