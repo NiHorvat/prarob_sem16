@@ -4,8 +4,8 @@ import subprocess
 from langchain.agents import tool
 import rclpy
 from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from geometry_msgs.msg import Point
+from std_msgs.msg import Float32MultiArray
 from yolo_msgs.msg import DetectionArray
 from prarob_interact.kinematics import Kinematics
 from prarob_interact.path_planning import (
@@ -13,16 +13,41 @@ from prarob_interact.path_planning import (
     image_path_to_task_path,
     plan_image_path,
 )
-import numpy as np
 import time
 
-## TODO ##
-# Implement your own global variables, these are used for demonstrative purposes only
 JOINT_NAMES = ['joint1', 'joint2', 'joint3']
-# Define Limits
-JOINT_MIN = [-3.0, -1.5, -1.4, -1.5]
-JOINT_MAX = [3.0, 1.5, 1.0, 1.5]
-## ##
+
+
+def _extract_joint_positions(msg: JointState) -> list[float]:
+    """Return [joint1, joint2, joint3] from a JointState message."""
+    if msg.name:
+        by_name = dict(zip(msg.name, msg.position))
+        if all(name in by_name for name in JOINT_NAMES):
+            return [float(by_name[name]) for name in JOINT_NAMES]
+
+    if len(msg.position) < 3:
+        raise ValueError("JointState message does not contain three joint positions")
+    return [float(msg.position[0]), float(msg.position[1]), float(msg.position[2])]
+
+
+def _read_current_joints(node, timeout_sec: float = 1.0) -> list[float] | None:
+    received_msg = None
+
+    def callback(msg):
+        nonlocal received_msg
+        received_msg = msg
+
+    subscription = node.create_subscription(JointState, '/joint_states', callback, 10)
+    try:
+        start_time = node.get_clock().now()
+        while received_msg is None:
+            rclpy.spin_once(node, timeout_sec=0.1)
+            elapsed = node.get_clock().now() - start_time
+            if elapsed.nanoseconds > timeout_sec * 1e9:
+                return None
+        return _extract_joint_positions(received_msg)
+    finally:
+        node.destroy_subscription(subscription)
 
 
 @tool
@@ -107,14 +132,12 @@ def get_tool_pose(timeout_sec: float = 2.0):
         nonlocal received_msg
         received_msg = msg
 
-    # Create a subscription
     subscription = node.create_subscription(
         JointState,
         '/joint_states',
         callback,
         10
     )
-    # TODO you will implement your own kinematics solution in kinematics.py
     kinematics_node = Kinematics()
 
     try:
@@ -127,28 +150,19 @@ def get_tool_pose(timeout_sec: float = 2.0):
             if elapsed.nanoseconds > (timeout_sec * 1e9):
                 return "Error: Timeout reached. No messages received on /joint_states."
 
-        w = kinematics_node.get_dk(received_msg.position)
-
-        # Format the output for the agent
-        output = (
-            f"X: {w[0]}\n"
-            f"Y: {w[1]}\n"
-            f"Z: {w[2]}\n"
-            f"Roll: {w[3]}\n"
-            f"Pitch: {w[4]}\n"
-            f"Yaw: {w[5]}\n"
-
-        )
-        return output
+        joint_positions = _extract_joint_positions(received_msg)
+        xyz = kinematics_node.get_dk(joint_positions)
+        return {"x": xyz[0], "y": xyz[1], "z": xyz[2]}
 
     except Exception as e:
         return f"Error retrieving joint states: {str(e)}"
     finally:
+        node.destroy_subscription(subscription)
         node.destroy_node()
 
 
 @tool
-def move_to_pose(x: float, y: float, z: float, roll: float, pitch: float, yaw: float, duration: float = 3.0):
+def move_to_pose(x: float, y: float, z: float, roll: float = 0.0, pitch: float = 0.0, yaw: float = 0.0, duration: float = 3.0):
     """
     Moves the robot end-effector to a specific 3D pose (X, Y, Z in meters, Roll, Pitch, Yaw in radians).
     This tool calculates the required joint angles using Inverse Kinematics.
@@ -166,42 +180,30 @@ def move_to_pose(x: float, y: float, z: float, roll: float, pitch: float, yaw: f
     node = rclpy.create_node(node_name)
 
     try:
-        # 1. Calculate Joint Angles via IK
-        # TODO you will implement your own kinematics solution in kinematics.py
         kinematics_node = Kinematics()
-        target_pose = [x, y, z, roll, pitch, yaw]
-        joint_angles = kinematics_node.get_ik(target_pose)
+        target_pose = [x, y, z]
+        solutions = kinematics_node.get_ik(target_pose)
 
-        # Basic error handling if IK fails (returns None or empty)
-        if joint_angles is None or len(joint_angles) == 0:
+        if not solutions:
             return f"Error: The pose {target_pose} is out of reach or mathematically impossible for this robot."
 
-        # 2. Setup Publisher
+        current_joints = _read_current_joints(node, timeout_sec=1.0) or [0.0, 0.0, 0.0]
+        joint_angles = kinematics_node.get_closest_ik(solutions, current_joints)
+        if joint_angles is None:
+            return "Error: No IK solution."
+
         publisher = node.create_publisher(
-            JointTrajectory, '/arm_controller/joint_trajectory', 10)
+            Float32MultiArray, '/move_servos_node/angles', 10)
 
-        # 3. Prepare Trajectory Message
-        msg = JointTrajectory()
-        msg.joint_names = JOINT_NAMES
-        point = JointTrajectoryPoint()
+        msg = Float32MultiArray()
+        msg.data = [float(angle) for angle in joint_angles]
 
-        # Clip the IK results for safety
-        point.positions = np.clip(joint_angles, JOINT_MIN, JOINT_MAX).tolist()
-
-        # Set timing
-        seconds = int(duration)
-        nanoseconds = int((duration - seconds) * 1e9)
-        point.time_from_start.sec = seconds
-        point.time_from_start.nanosec = nanoseconds
-        msg.points.append(point)
-
-        # 4. Execute with Discovery Buffers
         time.sleep(0.1)  # Allow publisher discovery
         publisher.publish(msg)
         time.sleep(0.1)  # Ensure message delivery before node destruction
 
         return (f"IK Success. Moving to Pose: X:{x:.3f}, Y:{y:.3f}, Z:{z:.3f}. "
-                f"Computed Joints: {point.positions}")
+                f"Computed Joints: {msg.data}")
 
     except Exception as e:
         return f"Hardware error during IK movement: {str(e)}"

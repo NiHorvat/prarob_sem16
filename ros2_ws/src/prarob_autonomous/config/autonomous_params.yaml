@@ -1,0 +1,40 @@
+autonomous_draw_node:
+  ros__parameters:
+    # Topics
+    detections_topic: /yolo/detections
+    image_topic: /image_raw
+    angles_topic: /move_servos_node/angles
+    commands_topic: /move_servos_node/commands
+    joint_states_topic: /joint_states
+
+    # Image / board mapping
+    image_width: 640
+    image_height: 480
+    # Leave empty to use the linear workspace mapping below; set to the YAML
+    # written by board_calibration_node for an accurate homography.
+    board_homography_file: ""
+    workspace_x_min: 0.06
+    workspace_x_max: 0.28
+    workspace_y_min: -0.14
+    workspace_y_max: 0.14
+
+    # Planning
+    cell_size: 5          # occupancy grid cell, pixels
+    margin_cells: 3       # obstacle inflation (marker clearance), cells
+    order: "given"        # "given" or "nearest"
+
+    # Pen geometry (metres, robot frame)
+    drawing_z: 0.0        # marker tip height while drawing
+    pen_up_z: 0.03        # lift height for approach/retract
+
+    # Execution
+    seconds_per_waypoint: 0.2
+    publish_angles: true
+    reset_before_draw: true
+
+    # Detection gating
+    min_detection_score: 0.25
+    detection_timeout_sec: 3.0
+
+    # Debug
+    debug_image_save_path: ""   # e.g. /tmp/autonomous_debug.png

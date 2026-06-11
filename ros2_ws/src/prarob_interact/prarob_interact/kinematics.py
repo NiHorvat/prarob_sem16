@@ -1,74 +1,81 @@
 #!/usr/bin/env python3
 
-from math import pi, floor
-from math import sin, cos
-from math import sqrt
-from math import atan2, asin, acos
+from math import floor, pi
+
 import numpy as np
-import copy
 
-## TODO ##
-# Imprement your direct and inverse kinematics here
 
-class Kinematics():
+class Kinematics:
+    """Direct and inverse kinematics for the 3-DOF RRR drawing robot."""
 
-    def __init__(self):
-        # Definiraj varijable
-        return
+    D1 = 0.0579
+    D2 = 0.0209
+    L1 = 0.224
+    L2 = 0.125
+    JOINT_LIMIT = pi / 2.0
 
     def get_dk(self, q):
-        # Implement here direct kinematics
-        # INPUT: q as a vector 4x1
-        # OUTPUT: w as a vector 6x1
+        """Return end-effector position [x, y, z] for joint values [q1, q2, q3]."""
+        if len(q) < 3:
+            raise ValueError("get_dk expects [q1, q2, q3]")
 
-        # TODO:
+        q1, q2, q3 = float(q[0]), float(q[1]), float(q[2])
 
+        r = self.D2 + self.L1 * np.cos(q2) + self.L2 * np.cos(q2 + q3)
+        z = self.D1 + self.L1 * np.sin(q2) + self.L2 * np.sin(q2 + q3)
+        x = r * np.cos(q1)
+        y = r * np.sin(q1)
 
-        # OUTPUT:
-        w = np.zeros(6)
-        #w[0] = ...
-        #w[1] = ...
-        #w[2] = ...
-        #w[3] = ...
-        #w[4] = ...
-        #w[5] = ...
+        return [float(x), float(y), float(z)]
 
-        #return w
-        return "This function has not been implemented yet."
+    def get_ik(self, w, q0=None):
+        """Return all valid IK solutions [[q1, q2, q3], ...] for target [x, y, z]."""
+        if len(w) < 3:
+            raise ValueError("get_ik expects [x, y, z]")
 
-    def get_ik(self, w, q0 = None):
-        # Implement here inverse kinematics
-        # INPUT (1): w 6x1 as a tool configuration vector, w = [x, y, z, wx, wy, wz]
-        # OUTPUT: q_all 4xN as all inverse solutions
+        x, y, z = float(w[0]), float(w[1]), float(w[2])
+        q1 = float(np.arctan2(y, x))
 
-        # TODO
+        r = float(np.sqrt(x**2 + y**2) - self.D2)
+        zz = z - self.D1
+        dist = float(np.sqrt(r**2 + zz**2))
 
-        # Output
-        q_all = []
-        # q_closest = self.get_closest_ik(q_all, q0)
+        if dist > self.L1 + self.L2:
+            return []
+        if dist < abs(self.L1 - self.L2):
+            return []
 
-        # return q_closest
-        return "This function has not been implemented yet."
-        
+        cos_q3 = np.clip(
+            (dist**2 - self.L1**2 - self.L2**2) / (2.0 * self.L1 * self.L2),
+            -1.0,
+            1.0,
+        )
+
+        solutions = []
+        for q3 in (float(np.arccos(cos_q3)), float(-np.arccos(cos_q3))):
+            beta = np.arctan2(
+                self.L2 * np.sin(q3),
+                self.L1 + self.L2 * np.cos(q3),
+            )
+            alpha = np.arctan2(zz, r)
+            q2 = float(alpha - beta)
+            candidate = [q1, q2, q3]
+
+            if all(abs(angle) <= self.JOINT_LIMIT for angle in candidate):
+                solutions.append([float(angle) for angle in candidate])
+
+        return solutions
 
     def get_closest_ik(self, q_all, q0):
-        # Find closest IK solution to robot pose q0
-        # INPUT (1): q_all all IK solutions, 6xN
-        # INPUT (2): q0 current joint state configuration
-        # OUTPUT: q 6x1
+        """Return the IK solution closest to q0, or None if q_all is empty."""
+        if not q_all:
+            return None
 
-        # TODO:
+        q0_array = np.array(q0 if q0 is not None else [0.0, 0.0, 0.0], dtype=float)
+        return min(
+            q_all,
+            key=lambda q: np.linalg.norm(np.array(q, dtype=float) - q0_array),
+        )
 
-        # Output
-        q = np.zeros(6)
-        #q[0] = ..
-        #q[1] = ..
-        #q[2] = ..
-        #q[3] = ..
-        #q[4] = ..
-        #q[5] = ..
-        #return q
-        return "This function has not been implemented yet."
-    
     def wrap2PI(self, x):
-        return (x-2*pi*floor(x/(2*pi)+0.5))
+        return x - 2 * pi * floor(x / (2 * pi) + 0.5)
